@@ -12,17 +12,18 @@ from flask_mail import Mail, Message
 from itsdangerous import URLSafeTimedSerializer, SignatureExpired, BadTimeSignature
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'bawjiase-secure-key-2025'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///bawjiase.db'
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'bawjiase-secure-key-2025') # Secure fallback
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///bawjiase.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# --- EMAIL CONFIGURATION ---
-app.config['MAIL_SERVER'] = 'smtp.gmail.com'
-app.config['MAIL_PORT'] = 587
-app.config['MAIL_USE_TLS'] = True
-app.config['MAIL_USERNAME'] = 'your-email@gmail.com' 
-app.config['MAIL_PASSWORD'] = 'your-app-password' 
-app.config['MAIL_DEFAULT_SENDER'] = 'your-email@gmail.com'
+# --- PRO EMAIL CONFIGURATION (LOADS FROM RENDER) ---
+# This allows you to use your official bank email (Outlook, cPanel, or Gmail)
+app.config['MAIL_SERVER'] = os.environ.get('MAIL_SERVER', 'smtp.gmail.com')
+app.config['MAIL_PORT'] = int(os.environ.get('MAIL_PORT', 587))
+app.config['MAIL_USE_TLS'] = os.environ.get('MAIL_USE_TLS', 'True') == 'True'
+app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME')
+app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD')
+app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_USERNAME')
 
 mail = Mail(app)
 s = URLSafeTimedSerializer(app.config['SECRET_KEY'])
@@ -157,6 +158,16 @@ def save_uploaded_file(form_file, folder):
         except: return None
     return None
 
+# --- SECRET ADMIN ROUTE (RUN ONCE, THEN REMOVE) ---
+@app.route('/make-me-admin')
+@login_required
+def make_me_admin():
+    current_user.role = 'Super Admin'
+    current_user.department = 'IT'
+    db.session.commit()
+    flash('You are now Super Admin!', 'success')
+    return redirect(url_for('dashboard'))
+
 # --- ROUTES ---
 @app.route('/')
 def home(): 
@@ -199,7 +210,7 @@ def register():
             flash('Account created! Verification link sent to email.', 'info')
         except Exception as e:
             print(f"Email error: {e}")
-            flash('Account created, but email failed. Contact IT.', 'warning')
+            flash('Account created, but email failed to send. Contact IT Support.', 'warning')
         return redirect(url_for('login'))
     return render_template('register.html')
 
@@ -222,7 +233,6 @@ def confirm_email(token):
         flash('Email verified! You can now login.', 'success')
     return redirect(url_for('login'))
 
-# --- FORGOT PASSWORD LOGIC (UPDATED) ---
 @app.route('/forgot-password', methods=['GET', 'POST'])
 def forgot_password():
     if request.method == 'POST':
@@ -246,7 +256,7 @@ def forgot_password():
 @app.route('/reset_password/<token>', methods=['GET', 'POST'])
 def reset_token(token):
     try:
-        email = s.loads(token, salt='password-reset', max_age=1800) # 30 mins
+        email = s.loads(token, salt='password-reset', max_age=1800)
     except SignatureExpired:
         flash('Token expired. Try again.', 'danger')
         return redirect(url_for('forgot_password'))
