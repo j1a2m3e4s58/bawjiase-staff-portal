@@ -2,7 +2,9 @@ Flask
 Flask-Bcrypt
 Flask-Login
 Flask-SQLAlchemy
+Flask-Mail
 Pillow
 gunicorn
 email-validator
 dnspython
+itsdangerous
