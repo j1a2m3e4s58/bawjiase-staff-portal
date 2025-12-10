@@ -42,11 +42,23 @@
             <div class="tab-content border rounded p-3 bg-white" id="postTabsContent">
                 <div class="tab-pane fade show active" id="upload">
                     <label class="form-label small text-muted">Select File (Image/PDF/Word)</label>
-                    <input type="file" name="news_image" class="form-control mb-3" id="fileUploadInput" accept=".jpg,.jpeg,.png,.pdf,.doc,.docx">
-                    <div class="form-check form-switch">
+                    
+                    <input type="file" name="news_image" class="form-control mb-2" id="fileUploadInput" accept=".jpg,.jpeg,.png,.pdf,.doc,.docx" onchange="simulateUpload()">
+                    
+                    <div id="uploadProgressContainer" class="mt-2" style="display: none;">
+                        <div class="d-flex justify-content-between small mb-1">
+                            <span class="text-success fw-bold"><i class="fas fa-arrow-down"></i> Downloading to System...</span>
+                            <span id="uploadPercent">0%</span>
+                        </div>
+                        <div class="progress" style="height: 10px;">
+                            <div id="progressBar" class="progress-bar bg-success progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%;"></div>
+                        </div>
+                        <small class="text-muted d-block mt-1">Please wait for file to fully load before posting.</small>
+                    </div>
+
+                    <div class="form-check form-switch mt-3">
                         <input class="form-check-input" type="checkbox" name="allow_download" id="allowDownload" checked>
                         <label class="form-check-label small fw-bold" for="allowDownload">Allow Staff to Download File</label>
-                        <div class="form-text small">If unchecked, button changes to 'View Only'.</div>
                     </div>
                 </div>
 
@@ -83,7 +95,9 @@
             </div>
 
             <div class="text-end mt-3">
-                <button type="submit" class="btn btn-primary rounded-pill px-4 fw-bold shadow-sm"><i class="fas fa-paper-plane me-2"></i> Post Now</button>
+                <button type="submit" id="postBtn" class="btn btn-primary rounded-pill px-4 fw-bold shadow-sm">
+                    <i class="fas fa-paper-plane me-2"></i> Post Now
+                </button>
             </div>
         </form>
     </div>
@@ -91,19 +105,46 @@
 
 <div id="postingOverlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.9); z-index:9999; flex-direction:column; align-items:center; justify-content:center;">
     <div class="animate-fly"><i class="fas fa-paper-plane text-success" style="font-size: 5rem;"></i></div>
-    <h3 id="uploadText" class="mt-4 fw-bold text-success animate-fade">Broadcasting...</h3>
+    <h3 class="mt-4 fw-bold text-success animate-fade">Broadcasting...</h3>
 </div>
 
 <script>
+    // --- UPLOAD SIMULATION ---
+    function simulateUpload() {
+        let fileInput = document.getElementById('fileUploadInput');
+        let container = document.getElementById('uploadProgressContainer');
+        let progressBar = document.getElementById('progressBar');
+        let percentText = document.getElementById('uploadPercent');
+        let btn = document.getElementById('postBtn');
+
+        if (fileInput.files.length > 0) {
+            container.style.display = 'block';
+            btn.disabled = true; // Disable Post button during upload
+            let width = 0;
+            
+            // Speed depends on "size" (simulated)
+            let interval = setInterval(function() {
+                if (width >= 100) {
+                    clearInterval(interval);
+                    percentText.innerText = "100% (Ready)";
+                    percentText.classList.add("text-success");
+                    progressBar.classList.remove("progress-bar-animated");
+                    btn.disabled = false; // Re-enable button
+                } else {
+                    width += 5; // Adjust speed here
+                    progressBar.style.width = width + '%';
+                    percentText.innerText = width + '%';
+                }
+            }, 100); // 100ms * 20 steps = ~2 seconds
+        }
+    }
+
     function animatePost(e) {
         e.preventDefault();
-        let fileInput = document.getElementById('fileUploadInput');
-        if (fileInput.files.length > 0) {
-            document.getElementById('uploadText').innerText = "Uploading File & Posting...";
-        }
         document.getElementById('postingOverlay').style.display = 'flex';
         setTimeout(() => { e.target.submit(); }, 2000);
     }
+
     // (Camera scripts unchanged)
     let video = document.getElementById('video');
     let cropper;

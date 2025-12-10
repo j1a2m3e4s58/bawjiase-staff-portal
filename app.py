@@ -8,11 +8,25 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from flask_bcrypt import Bcrypt
 from datetime import datetime
+from flask_mail import Mail, Message
+from itsdangerous import URLSafeTimedSerializer, SignatureExpired, BadTimeSignature
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'bawjiase-secure-key-2025'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///bawjiase.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+# --- EMAIL CONFIGURATION (REPLACE WITH YOUR ACTUAL DETAILS) ---
+app.config['MAIL_SERVER'] = 'smtp.gmail.com'
+app.config['MAIL_PORT'] = 587
+app.config['MAIL_USE_TLS'] = True
+# For production, use environment variables!
+app.config['MAIL_USERNAME'] = 'your-email@gmail.com' 
+app.config['MAIL_PASSWORD'] = 'your-app-password' 
+app.config['MAIL_DEFAULT_SENDER'] = 'your-email@gmail.com'
+
+mail = Mail(app)
+s = URLSafeTimedSerializer(app.config['SECRET_KEY'])
 
 # CONFIGURE FOLDERS
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
@@ -45,7 +59,11 @@ class User(db.Model, UserMixin):
     department = db.Column(db.String(100), nullable=False)
     branch = db.Column(db.String(100), nullable=False)
     image_file = db.Column(db.String(20), nullable=False, default='default.jpg')
-    is_active_user = db.Column(db.Boolean, default=True) 
+    is_active_user = db.Column(db.Boolean, default=True)
+    
+    # NEW: Email Verification Status
+    is_verified = db.Column(db.Boolean, default=False)
+    
     hidden_announcements = db.relationship('Announcement', secondary=hidden_posts, backref='hidden_by')
     def get_id(self): return str(self.id)
 
@@ -152,27 +170,79 @@ def home():
     if current_user.is_authenticated: return redirect(url_for('dashboard'))
     return redirect(url_for('login'))
 
+# --- LOGIN (UPDATED) ---
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     with app.app_context(): db.create_all()
     if request.method == 'POST':
         user = User.query.filter_by(email=request.form.get('email').lower()).first()
         if user and bcrypt.check_password_hash(user.password, request.form.get('password')):
+            if not user.is_verified:
+                flash('Please check your email to verify your account first.', 'warning')
+                return redirect(url_for('login'))
             login_user(user)
             return redirect(url_for('dashboard'))
         flash('Invalid credentials', 'danger')
     return render_template('login.html')
 
+# --- REGISTER (UPDATED) ---
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
-        if User.query.filter_by(email=request.form.get('email').lower()).first():
+        email = request.form.get('email').lower()
+        if User.query.filter_by(email=email).first():
+            flash('Email already registered.', 'warning')
             return redirect(url_for('register'))
+        
         pw = bcrypt.generate_password_hash(request.form.get('password')).decode('utf-8')
-        db.session.add(User(fullname=request.form.get('fullname'), phone=request.form.get('phone'), email=request.form.get('email').lower(), password=pw, department=request.form.get('department'), branch=request.form.get('branch')))
+        user = User(
+            fullname=request.form.get('fullname'), 
+            phone=request.form.get('phone'), 
+            email=email, 
+            password=pw, 
+            department=request.form.get('department'), 
+            branch=request.form.get('branch'),
+            is_verified=False
+        )
+        db.session.add(user)
         db.session.commit()
+
+        # Send Verification Email
+        try:
+            token = s.dumps(email, salt='email-confirm')
+            msg = Message('Confirm Email - Bawjiase Staff Portal', recipients=[email])
+            link = url_for('confirm_email', token=token, _external=True)
+            msg.body = f'Your confirmation link is {link}'
+            mail.send(msg)
+            flash('Account created! Verification link sent to email.', 'info')
+        except Exception as e:
+            print(f"Email error: {e}")
+            flash('Account created, but email failed. Contact IT.', 'warning')
+
         return redirect(url_for('login'))
     return render_template('register.html')
+
+# --- CONFIRM EMAIL ROUTE ---
+@app.route('/confirm_email/<token>')
+def confirm_email(token):
+    try:
+        email = s.loads(token, salt='email-confirm', max_age=3600)
+    except SignatureExpired:
+        flash('The token is expired.', 'danger')
+        return redirect(url_for('login'))
+    except BadTimeSignature:
+        flash('Invalid token.', 'danger')
+        return redirect(url_for('login'))
+
+    user = User.query.filter_by(email=email).first_or_404()
+    if user.is_verified:
+        flash('Account already verified.', 'success')
+    else:
+        user.is_verified = True
+        db.session.commit()
+        flash('Email verified! You can now login.', 'success')
+    
+    return redirect(url_for('login'))
 
 @app.route('/forgot-password')
 def forgot_password(): return render_template('forgot_password.html')
