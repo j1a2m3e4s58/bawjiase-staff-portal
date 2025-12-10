@@ -1,14 +1,47 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="container d-flex justify-content-center align-items-center vh-100">
-    <div class="card glass-card p-4 fade-in mt-5" style="width: 380px;"> 
+<style>
+    /* Logo Badge Style (Consistent with Register Page) */
+    .logo-badge {
+        position: absolute;
+        top: -40px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 80px;
+        height: 80px;
+        background: white;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        z-index: 10;
+    }
+
+    /* Mobile Responsiveness */
+    .login-card {
+        width: 400px;
+        position: relative;
+        overflow: visible; /* Allows logo to float outside */
+    }
+
+    @media (max-width: 576px) {
+        .login-card {
+            width: 95% !important; /* Full width on phone */
+            margin-top: 30px !important; /* Space for logo */
+        }
+    }
+</style>
+
+<div class="container d-flex justify-content-center align-items-center min-vh-100">
+    <div class="card glass-card p-4 fade-in login-card mt-3"> 
         
         <div class="logo-badge">
-            <img src="{{ url_for('static', filename='img/barb_logo.png') }}" alt="BARB Logo">
+            <img src="{{ url_for('static', filename='img/barb_logo.png') }}" alt="BARB Logo" width="60" height="60" class="rounded-circle">
         </div>
 
-        <div class="text-center mb-4 mt-5 pt-3">
+        <div class="text-center mb-4 mt-4 pt-2">
             <h5 class="fw-bold text-dark mb-0">Staff Portal</h5>
             <p class="small text-muted">Secure Access</p>
         </div>
